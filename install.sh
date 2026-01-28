@@ -6,18 +6,31 @@ echo "  Dploy Auto-Deploy Installer"
 echo "======================================"
 echo
 
-# ===== Ask user for inputs =====
+# ===== Defaults =====
 DEFAULT_BASE="$(pwd)"
-read -p "Base directory for deployment [${DEFAULT_BASE}]: " BASE
-BASE="${BASE:-$DEFAULT_BASE}"
-
 DEFAULT_BRANCH="production"
-read -p "Git branch to deploy [${DEFAULT_BRANCH}]: " BRANCH
-BRANCH="${BRANCH:-$DEFAULT_BRANCH}"
-
 DEFAULT_KEY_NAME="dploy-git"
-read -p "SSH key filename inside .ssh [${DEFAULT_KEY_NAME}]: " KEY_NAME
-KEY_NAME="${KEY_NAME:-$DEFAULT_KEY_NAME}"
+
+# ===== Interactive if TTY, defaults otherwise =====
+if [ -t 0 ]; then
+  read -p "Base directory for deployment [${DEFAULT_BASE}]: " BASE
+  BASE="${BASE:-$DEFAULT_BASE}"
+
+  read -p "Git branch to deploy [${DEFAULT_BRANCH}]: " BRANCH
+  BRANCH="${BRANCH:-$DEFAULT_BRANCH}"
+
+  read -p "SSH key filename inside .ssh [${DEFAULT_KEY_NAME}]: " KEY_NAME
+  KEY_NAME="${KEY_NAME:-$DEFAULT_KEY_NAME}"
+else
+  # Non-interactive mode (curl | bash)
+  BASE="$DEFAULT_BASE"
+  BRANCH="$DEFAULT_BRANCH"
+  KEY_NAME="$DEFAULT_KEY_NAME"
+  echo "Non-interactive mode detected — using defaults:"
+  echo "  Base: $BASE"
+  echo "  Branch: $BRANCH"
+  echo "  SSH key: $KEY_NAME"
+fi
 
 # ===== Paths =====
 CFG="$BASE/.dploy/config.yml"
@@ -62,7 +75,6 @@ REPO=$(grep 'git_repository:' "$BASE/.dploy/config.yml" | head -n1 | sed -E 's/^
 
 [ -z "$REPO" ] && { echo "$(date '+%Y-%m-%d %H:%M:%S') $BRANCH: ERROR: git_repository not found" >> "$LOG"; exit 1; }
 
-# Prevent overlapping runs
 exec 9>"$LOCK"
 flock -n 9 || exit 0
 
@@ -81,7 +93,6 @@ STATUS=$?
 END=$(date +%s)
 DURATION=$((END - START))
 
-# Shorten commit hash to 7 chars
 SHORT_COMMIT="${REMOTE:0:7}"
 
 if [ $STATUS -eq 0 ]; then
@@ -94,14 +105,11 @@ else
 fi
 EOF
 
-# ===== Replace placeholders =====
+# Replace placeholders
 sed -i "s|KEY_NAME_PLACEHOLDER|$KEY_NAME|" "$SCRIPT"
 sed -i "s|BRANCH_PLACEHOLDER|$BRANCH|" "$SCRIPT"
 
-# ===== Make deploy.sh executable =====
 chmod +x "$SCRIPT"
-
-# ===== Ensure state & log exist =====
 touch "$STATE" "$LOG"
 
 # ===== Cron =====
