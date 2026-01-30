@@ -64,7 +64,7 @@ BASE="$(cd "$(dirname "$0")" && pwd)"
 KEY="$BASE/.ssh/KEY_NAME_PLACEHOLDER"
 STATE="$BASE/.last_commit"
 LOG="$BASE/deploy.log"
-LOCK="/tmp/website-deploy.lock"
+LOCK="$BASE/.deploy.lock"
 
 export PATH=/usr/local/bin:/usr/bin:/bin
 
