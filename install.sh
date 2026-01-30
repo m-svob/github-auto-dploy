@@ -38,7 +38,8 @@ KEY="$BASE/.ssh/$KEY_NAME"
 SCRIPT="$BASE/deploy.sh"
 STATE="$BASE/.last_commit"
 LOG="$BASE/deploy.log"
-LOCK="/tmp/website-deploy.lock"
+LOCK="$BASE/.deploy.lock"
+
 
 # ===== Summary =====
 echo
