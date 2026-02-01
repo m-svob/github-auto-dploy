@@ -24,7 +24,7 @@ cd github-auto-dploy
 ```
 
 
-## Usage
+## Usage
 
 
 ```bash
