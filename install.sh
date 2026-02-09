@@ -126,7 +126,7 @@ REPO=$(grep 'git_repository:' "$BASE/.dploy/config.yml" \
   | sed -E 's/^[[:space:]]*git_repository:[[:space:]]*//; s/^'\''//; s/'\''$//')
 
 [ -z "$REPO" ] && {
-  MSG="ERROR: git_repository not found"
+  MSG="ERROR: git_repository not found in config.yml"
   echo "$(date '+%Y-%m-%d %H:%M:%S') $MSG" >> "$LOG"
   notify_discord "[$WEBSITE_NAME] Deploy failed" "$MSG" 13835549
   exit 1
@@ -140,18 +140,39 @@ exec 9>"$LOCK"
 flock -n 9 || exit 0
 
 ####################################
-# Git remote check
+# Git remote check with Retry
 ####################################
 
-export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
 
-REMOTE=$(git ls-remote "$REPO" "refs/heads/$BRANCH" | awk '{print $1}')
-[ -z "$REMOTE" ] && {
-  MSG="ERROR: git ls-remote failed"
+REMOTE=""
+GIT_ERR_FILE="/tmp/dploy_git_err_$(date +%s).log"
+
+for i in {1..3}; do
+  # Try to get the remote commit hash
+  REMOTE=$(git ls-remote "$REPO" "refs/heads/$BRANCH" 2>"$GIT_ERR_FILE" | awk '{print $1}')
+  
+  if [ -n "$REMOTE" ]; then
+    break
+  else
+    echo "$(date '+%Y-%m-%d %H:%M:%S') git ls-remote attempt $i failed. Retrying..." >> "$LOG"
+    sleep 5
+  fi
+done
+
+if [ -z "$REMOTE" ]; then
+  GIT_RAW_ERR=$(cat "$GIT_ERR_FILE" | tr '\n' ' ' | sed 's/"/\\"/g')
+  rm -f "$GIT_ERR_FILE"
+  
+  MSG="ERROR: git ls-remote failed after 3 attempts. Detail: $GIT_RAW_ERR"
   echo "$(date '+%Y-%m-%d %H:%M:%S') $MSG" >> "$LOG"
-  notify_discord "[$WEBSITE_NAME] Deploy failed" "$MSG" 13835549
+  
+  # Only notify Discord if it's not a generic network timeout to avoid spam
+  notify_discord "[$WEBSITE_NAME] Git Check Failed" "$MSG" 13835549
   exit 1
-}
+fi
+
+rm -f "$GIT_ERR_FILE"
 
 SHORT_COMMIT="${REMOTE:0:7}"
 LAST=$(cat "$STATE" 2>/dev/null || echo "")
