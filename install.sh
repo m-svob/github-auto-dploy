@@ -152,7 +152,7 @@ REMOTE=$(git ls-remote "$REPO" "refs/heads/$BRANCH" 2>/dev/null | awk '{print $1
 # If we can't reach Git, just stop and wait for the next cron minute.
 [ -z "$REMOTE" ] && exit 0
 
-SHORT_COMMIT="${REMOTE:0:7}"
+SHORT_COMMIT=$(echo "$REMOTE" | cut -c1-7)
 LAST=$(cat "$STATE" 2>/dev/null || echo "")
 
 ####################################
