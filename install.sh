@@ -140,39 +140,17 @@ exec 9>"$LOCK"
 flock -n 9 || exit 0
 
 ####################################
-# Git remote check with Retry
+# Git remote check (Silent & Fast)
 ####################################
 
 export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
 
-REMOTE=""
-GIT_ERR_FILE="/tmp/dploy_git_err_$(date +%s).log"
+# Try to get the hash. If it fails (network/timeout), just exit 0.
+# No retries, no Discord pings, no log spam.
+REMOTE=$(git ls-remote "$REPO" "refs/heads/$BRANCH" 2>/dev/null | awk '{print $1}')
 
-for i in {1..3}; do
-  # Try to get the remote commit hash
-  REMOTE=$(git ls-remote "$REPO" "refs/heads/$BRANCH" 2>"$GIT_ERR_FILE" | awk '{print $1}')
-  
-  if [ -n "$REMOTE" ]; then
-    break
-  else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') git ls-remote attempt $i failed. Retrying..." >> "$LOG"
-    sleep 5
-  fi
-done
-
-if [ -z "$REMOTE" ]; then
-  GIT_RAW_ERR=$(cat "$GIT_ERR_FILE" | tr '\n' ' ' | sed 's/"/\\"/g')
-  rm -f "$GIT_ERR_FILE"
-  
-  MSG="ERROR: git ls-remote failed after 3 attempts. Detail: $GIT_RAW_ERR"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') $MSG" >> "$LOG"
-  
-  # Only notify Discord if it's not a generic network timeout to avoid spam
-  notify_discord "[$WEBSITE_NAME] Git Check Failed" "$MSG" 13835549
-  exit 1
-fi
-
-rm -f "$GIT_ERR_FILE"
+# If we can't reach Git, just stop and wait for the next cron minute.
+[ -z "$REMOTE" ] && exit 0
 
 SHORT_COMMIT="${REMOTE:0:7}"
 LAST=$(cat "$STATE" 2>/dev/null || echo "")
