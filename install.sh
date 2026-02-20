@@ -64,6 +64,18 @@ echo
 [ ! -f "$KEY" ] && { echo "❌ Missing SSH key $KEY"; exit 1; }
 
 ############################
+# Capture Current Environment
+############################
+# Get the absolute paths of the tools currently being used
+NODE_PATH=$(which node || echo "/usr/bin/node")
+NPM_PATH=$(which npm || echo "/usr/bin/npm")
+DPLOY_PATH=$(which dploy || echo "/usr/local/bin/dploy")
+
+# Get the directory containing these binaries
+NODE_BIN_DIR=$(dirname "$NODE_PATH")
+DPLOY_BIN_DIR=$(dirname "$DPLOY_PATH")
+
+############################
 # Create deploy.sh
 ############################
 
@@ -86,7 +98,7 @@ LOCK="$BASE/.deploy.lock"
 BRANCH="BRANCH_PLACEHOLDER"
 DISCORD_WEBHOOK="DISCORD_WEBHOOK_PLACEHOLDER"
 
-export PATH=/usr/local/bin:/usr/bin:/bin
+export PATH="NODE_BIN_DIR_PLACEHOLDER:DPLOY_BIN_DIR_PLACEHOLDER:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 ####################################
 # Discord embed sender (PURE BASH)
@@ -143,7 +155,7 @@ flock -n 9 || exit 0
 # Git remote check (Silent & Fast)
 ####################################
 
-export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15"
+export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
 # Try to get the hash. If it fails (network/timeout), just exit 0.
 # No retries, no Discord pings, no log spam.
@@ -219,7 +231,12 @@ sed -i "s|KEY_NAME_PLACEHOLDER|$KEY_NAME|" "$SCRIPT"
 sed -i "s|BRANCH_PLACEHOLDER|$BRANCH|" "$SCRIPT"
 sed -i "s|DISCORD_WEBHOOK_PLACEHOLDER|$DISCORD_WEBHOOK|" "$SCRIPT"
 
+# ADD THESE TWO LINES:
+sed -i "s|NODE_BIN_DIR_PLACEHOLDER|$NODE_BIN_DIR|" "$SCRIPT"
+sed -i "s|DPLOY_BIN_DIR_PLACEHOLDER|$DPLOY_BIN_DIR|" "$SCRIPT"
+
 chmod +x "$SCRIPT"
+
 touch "$STATE" "$LOG"
 
 ############################
